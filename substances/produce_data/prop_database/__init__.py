@@ -43,7 +43,8 @@ def request_substance(CAS = None):
 
 def request_substance_pd(CAS = None):
     '''
-    retrieves property information data from database using pandas.read_sql
+    retrieves substance information data from database using pandas.read_sql
+    if no CAS number is given then all substances are returned
     '''   
 
     if CAS is None:
@@ -56,7 +57,7 @@ def request_substance_pd(CAS = None):
 
 def request_property(prop, CAS = None):
     '''
-    retrieves cleaned data from database 
+    retrieves cleaned data from database ()
     '''    
     c.execute("PRAGMA table_info(substance_properties)")
     cols = c.fetchall()
@@ -72,7 +73,7 @@ def request_property(prop, CAS = None):
 
 def request_property_pd(prop, CAS = None):
     '''
-    retrieves cleaned data from database 
+    retrieves cleaned data from database and returns mean of values
     '''    
 
     if CAS is None:

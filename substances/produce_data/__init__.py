@@ -12,12 +12,14 @@ def main(prop):
     subs = db.request_substance_pd()
     subs.dropna(axis = 0, inplace = True)
     subs.set_index('CAS', inplace = True)
+    # make list of unique CAS numbers
     subs = subs[~subs.index.duplicated(keep='first')]
 
+    # index of this df is CAS
     val = db.request_property_pd(prop)
     
     df = pd.concat([subs, val], axis = 1, ignore_index = False)
-    
+
     return df
 
 
@@ -42,7 +44,7 @@ def average_property(data, ind):
         val = row[ind]
         try:
             arr.append(float(val))
-        except:
+        except ValueError:
             pass
         
     return np.nanmean(np.array(arr))

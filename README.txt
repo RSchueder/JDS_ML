@@ -1,27 +1,33 @@
 README - 
 
-Hydro - p:\1209104-solutions\WP14\SIM\_Prod\HN_Danube\sc_meanoutflows.his
-Connectivity - p:\1209104-solutions\HYPE_Final\NewHypeSchematisation.xlsx
-SUBID	HAROID
-Haroid is sub id 9600704 for danube
-Maindown is the downstream subcatchment
-Uparea is cummulative up area
-Elev and slop info exists
-Raw data is p:\1209104-solutions\HYPE_Final\GeoData.txt, with SLC
-SLC characteristics is p:\1209104-solutions\HYPE_Final\GeoClass.txt
-JDS stations in postbox
-p:\1209104-solutions\WP14\SIM\_Data_Processing\Locators\locators_hypefinal_Nov2017.xlsx NO NOT OPEN, IN POSTBOX
+# Description of data locations
 
-PESTICIDES EMISSION 
-p:\1209104-solutions\WP14\SIM\_Data_Processing\Emissions\Emissions_Jan2018\prepare_for_ESpace_pesticides_v2.xlsx
-EMISSIONS FOR SOLUTIONS TAB
+**Hydro** - JDS_ML\hydrology\sc_outflows.his
 
-PHARMA EMISSIONS 
-p:\1209104-solutions\WP14\SIM\_Data_Processing\Emissions\Emissions and STP Feb 2018\prepare_for_ESpace_pharmaceuticals_v3.xlsx
+**Connectivity** - \JDS_ML\hydrology\NewHypeSchematisation.xlsx
+columns SUBID & HAROID
+Haroid is sub id, 9600704 is the value for danube catchment
+"Maindown" is the downstream subcatchment
+"Uparea" is cummulative upstream area
+Note that elev and slop info exists
+
+**Raw geodata** is \JDS_ML\hydrology\GeoData.txt, with SLC
+**SLC (landcover)** characteristics: \JDS_ML\hydrology\GeoClass.txt
+
+**JDS stations** with respect to subcatchment JDS_ML\measurements\JDSStat.prn
+also see locators tab in JDS_ML\geography\copy_locators_hypefinal_Nov2017.xlsx
+
+**Emissions for pesticides** 
+JDS_ML\emissions\prepare_for_ESpace_pesticides_v2.xlsx
+
+see emissions for SOLUTIONS tab
+
+**Emissions for pharmaceuticals**
+JDS_ML\emissions\prepare_for_ESpace_pharmaceuticals_v3.xlsx
 Tab EmisData
 
-REACH EMISSIONS
-p:\1209104-solutions\WP14\SIM\_Data_Processing\Emissions\Emissions and STP Feb 2018\prepare_for_ESpace_REACH_v2.xlsx
+**Emissions for reach**
+JDS_ML\emissions\prepare_for_ESpace_REACH_v2.xlsx
 
-EXAMPLE EMISSIONS PER COUNTRY 
+**Example emissions per country** 
 p:\1209104-solutions\WP14\SIM\_Prod\EN_Europe_validation\Subout\espaceCAS_100-41-4.dbg, COULD BE *.MES

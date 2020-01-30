@@ -19,6 +19,7 @@ measurements <-
          Substance,
          CAS_No,
          H_Unit,
+         Concentration,
          `Data value`,
          `Valid measurement`) %>% rename(subs_value = `Data value`, valid_measurement = `Valid measurement`) %>% 
   filter(CAS_No != "N/A")
@@ -100,6 +101,7 @@ data <- data_tot %>%
     Substance,
     CAS_No,
     H_Unit,
+    Concentration,
     subs_value,
     valid_measurement,
     kbiodeg,
@@ -127,7 +129,7 @@ data <- data_tot %>%
        H_Unit == "mg/kg" ~ subs_value * 1000,
       TRUE ~ subs_value
     ),
-    eenheid_id = case_when(H_Unit == "mg/l" ~ "µg/l",
+    H_Unit = case_when(H_Unit == "mg/l" ~ "µg/l",
                            H_Unit == "mg/kg" ~ "µg/kg",
                            TRUE ~ H_Unit)
   )

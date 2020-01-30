@@ -101,6 +101,7 @@ data <- data_tot %>%
     CAS_No,
     H_Unit,
     subs_value,
+    valid_measurement,
     kbiodeg,
     log_kow,
     molar_mass,

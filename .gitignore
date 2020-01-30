@@ -63,6 +63,7 @@ db.sqlite3-journal
 
 # Database
 *.db
+substance_properties.db
 
 # Flask stuff:
 instance/
@@ -126,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+substance_properties.db 
+"substance_properties.db" 
+'substance_properties.db' 
+'substance_properties.db'

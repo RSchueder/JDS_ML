@@ -15,14 +15,18 @@ catch <- read_excel("data/raw/NewHypeSchematisation.xlsx", sheet = "CumCat") %>%
   
 measurements <-
   read_excel(path = "data/raw/JDS_Query met pivot.xlsx", sheet = "DBQuery") %>%
-  select(Station_Code,
-         Substance,
-         CAS_No,
-         H_Unit,
-         Concentration,
-         `Data value`,
-         `Valid measurement`) %>% rename(subs_value = `Data value`, valid_measurement = `Valid measurement`) %>% 
-  filter(CAS_No != "N/A")
+  filter(Sample_Matrix == "Water - Surface water", CAS_No != "N/A") %>% 
+  select(
+    Station_Code,
+    Substance,
+    CAS_No,
+    H_Unit,
+    Concentration,
+    `Data value`,
+    `Valid measurement`
+  ) %>%
+  rename(subs_value = `Data value`,
+         valid_measurement = `Valid measurement`)
 
 measurements$H_Unit[measurements$H_Unit == "mg/L"] <- "mg/l"
 
@@ -31,8 +35,21 @@ measurements_mapping <- read_csv2(file = "data/raw/MappingJDS_Define.csv") %>%
   filter(HAROID == 9600704) %>% 
   select(station_co, SUBID, distance_t, CumAreakkm2)
 
+
 demo <- read_excel(path = "data/raw/copy_locators_hypefinal_Nov2017.xlsx", sheet = "locators") %>% 
   select(SC, CountryCorrFinal, GDPEP)
+
+countries <- read_excel(path = "data/raw/copy_locators_hypefinal_Nov2017.xlsx", sheet = "Countries") %>% 
+  rename(country = `Countries in Ehype`, country_nr = Nr) %>% 
+  select(country, country_nr)
+
+agrlu <- read_excel(path = "data/raw/copy_locators_hypefinal_Nov2017.xlsx", sheet = "LU") %>% 
+  select(SUBID, Agr) %>% 
+  rename(area_agr = Agr)
+
+demo <- left_join(demo, countries, by = c("CountryCorrFinal" = "country")) %>% 
+  left_join(agrlu, by = c("SC" = "SUBID"))
+
 
 conn <- dbConnect(RSQLite::SQLite(), "data/raw/substance_properties.db")
 dbListTables(conn)
@@ -64,12 +81,14 @@ sub_groups <- dbGetQuery(
   mutate(pest = str_detect(CODE, "pest"),
          pharma = str_detect(CODE, "pharma"),
          reach = str_detect(CODE, "reach")
-         ) %>% 
-  select(-CODE)
+         ) #%>% 
+  # select(-CODE)
 
 sub_groups <- sub_groups[!duplicated(sub_groups$CAS), ]
 
-## joining data ##
+
+# Joining data  -----------------------------------------------------------
+
 data_tot <-
   left_join(measurements_mapping,
             measurements ,
@@ -86,6 +105,7 @@ data <- data_tot %>%
     MAINDOWN,
     SUBID,
     CountryCorrFinal,
+    country_nr,
     LAKEREGION,
     REGION,
     WQPARREG,
@@ -112,6 +132,7 @@ data <- data_tot %>%
     pest,
     pharma,
     AREA,
+    area_agr,
     UPAREA,
     RIVLEN,
     ELEV_MEAN,
@@ -123,17 +144,66 @@ data <- data_tot %>%
     distance_t,
     CumAreakkm2
   ) %>% 
-   mutate(
+   mutate(  # recalculating units to one standard #
      subs_value = case_when(
        H_Unit == "mg/l" ~ subs_value * 1000,
        H_Unit == "mg/kg" ~ subs_value * 1000,
       TRUE ~ subs_value
     ),
     H_Unit = case_when(H_Unit == "mg/l" ~ "µg/l",
-                           H_Unit == "mg/kg" ~ "µg/kg",
-                           TRUE ~ H_Unit)
+                       H_Unit == "mg/kg" ~ "µg/kg",
+                       TRUE ~ H_Unit)
+  ) %>% 
+  filter(H_Unit != "µg/kg")
+
+# calculate fraction agricultural are for each subid #
+data <- mutate(data, f_agr = area_agr / AREA)
+
+
+
+# Obtaining emissions data ------------------------------------------------
+
+emission_files <- list.files(path = "data/raw/emission-data/", pattern = "*.dbg", full.names = TRUE)
+
+emission_data <- NULL
+
+# file <- "data/raw/emission-data/espaceCAS_100-41-4.dbg"
+for (file in emission_files) {
+  
+cas <- str_extract(basename(file), "\\d{1,}-\\d{1,2}-\\d{1}")
+  
+df <-
+  read_table2(
+    file = file,
+    skip = 2,
+    col_names = FALSE,
+    col_types =  cols(X1 = col_integer(),
+                      X2 = col_double(),
+                      X3 = col_double())
   )
 
+skip <- which(is.na(df$X1))
+
+df <- df[-c(1:skip[2]), ]
+colnames(df) <- c("country_nr" ,"emission_air_raw", "emission_water_raw", "emission_ww_raw", "emission_soil_raw", "unknown")
+df$cas <- cas
+
+emission_data <- bind_rows(emission_data, df)
+
+}
+
+emission_data <- select(emission_data, country_nr, cas, emission_air_raw:emission_soil_raw)
+
+
+data <- left_join(data, emission_data, by = c("country_nr" = "country_nr" , "CAS_No" = "cas"))
+
+# data <- mutate(
+#   data,
+#   emission_air = ,
+#   emission_water = ,
+#   emission_ww = ,
+#   emission_soil =
+# )
 
 ## writing data to disk ##
 # write_csv2(data, "data/modified/test-data.csv")

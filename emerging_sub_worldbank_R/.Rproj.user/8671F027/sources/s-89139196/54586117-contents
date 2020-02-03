@@ -158,7 +158,8 @@ data <- data_tot %>%
 
 # calculate fraction agricultural are for each subid #
 data <- mutate(data, f_agr = area_agr / AREA)
-
+# adding flag for substances that belong to multiple groups
+data$mult_groups <- rowSums(data[,c('reach', 'pharma', 'pest')], na.rm = TRUE)
 
 
 # Obtaining emissions data ------------------------------------------------
@@ -196,6 +197,7 @@ emission_data <- select(emission_data, country_nr, cas, emission_air_raw:emissio
 
 
 data <- left_join(data, emission_data, by = c("country_nr" = "country_nr" , "CAS_No" = "cas"))
+
 
 # data <- mutate(
 #   data,

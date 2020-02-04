@@ -7,6 +7,7 @@ library(readxl)
 library(RSQLite)
 
 # Loading data ------------------------------------------------------------
+
 geo_hydro <- read_tsv("data/raw/GeoData.txt") %>% 
   filter(HAROID == 9600704)
 
@@ -43,12 +44,22 @@ countries <- read_excel(path = "data/raw/copy_locators_hypefinal_Nov2017.xlsx", 
   rename(country = `Countries in Ehype`, country_nr = Nr) %>% 
   select(country, country_nr)
 
+country_gdpep <- read_tsv("data/raw/GeoData.txt") %>% 
+  select(SUBID) %>% 
+  left_join(demo, by = c("SUBID" = "SC")) %>% 
+  left_join(countries, by = c("CountryCorrFinal" = "country")) %>% 
+  group_by(CountryCorrFinal, country_nr) %>% 
+  summarise(coun_gdpep = sum(GDPEP, na.rm = TRUE)) %>% 
+  ungroup()
+  
 agrlu <- read_excel(path = "data/raw/copy_locators_hypefinal_Nov2017.xlsx", sheet = "LU") %>% 
   select(SUBID, Agr) %>% 
   rename(area_agr = Agr)
 
 demo <- left_join(demo, countries, by = c("CountryCorrFinal" = "country")) %>% 
-  left_join(agrlu, by = c("SC" = "SUBID"))
+  left_join(agrlu, by = c("SC" = "SUBID")) %>% 
+  left_join(country_gdpep, by = c("CountryCorrFinal", "country_nr")) %>% 
+  mutate(frac_GDPEP = GDPEP / coun_gdpep)
 
 
 conn <- dbConnect(RSQLite::SQLite(), "data/raw/substance_properties.db")
@@ -141,6 +152,7 @@ data <- data_tot %>%
     RELIEF,
     SLC_1:CumCat_km2,
     GDPEP,
+    frac_GDPEP,
     distance_t,
     CumAreakkm2
   ) %>% 
@@ -161,6 +173,20 @@ data <- mutate(data, f_agr = area_agr / AREA)
 # adding flag for substances that belong to multiple groups
 data$mult_groups <- rowSums(data[,c('reach', 'pharma', 'pest')], na.rm = TRUE)
 
+# making sure that every substance only belongs to one group using priorities #
+data <-
+  mutate(
+    data,
+    reach_bin = if_else(reach == TRUE & mult_groups == 1, 1 , 0),
+    pharma_bin = if_else(
+      pharma == TRUE & mult_groups == 1 | pharma == TRUE & pest != TRUE & mult_groups > 1,
+      1 , 0),
+    pest_bin = if_else(pest == TRUE, 1 , 0)
+  )
+# making on column for the groups
+data$sub_groups <- case_when(data$reach_bin == 1 ~ "reach",
+                             data$pharma_bin == 1 ~ " pharma",
+                             data$pest_bin == 1 ~ "pest")
 
 # Obtaining emissions data ------------------------------------------------
 
@@ -193,19 +219,32 @@ emission_data <- bind_rows(emission_data, df)
 
 }
 
+# cleaning and joining emission data #
 emission_data <- select(emission_data, country_nr, cas, emission_air_raw:emission_soil_raw)
-
 
 data <- left_join(data, emission_data, by = c("country_nr" = "country_nr" , "CAS_No" = "cas"))
 
+# calculating emissions based on substance group # 
+data <- mutate(
+  data,
+  emission_air = case_when(
+    pest_bin == 1 ~ emission_air_raw * f_agr,
+    pest_bin != 1 ~ emission_air_raw * frac_GDPEP
+  ),
+  emission_water = case_when(
+    pest_bin == 1 ~ emission_water_raw * f_agr,
+    pest_bin != 1 ~ emission_water_raw * frac_GDPEP
+  ),
+  emission_ww = case_when(
+    pest_bin == 1 ~ emission_ww_raw * f_agr,
+    pest_bin != 1 ~ emission_ww_raw * frac_GDPEP
+  ),
+  emission_soil = case_when(
+    pest_bin == 1 ~ emission_soil_raw * f_agr,
+    pest_bin != 1 ~ emission_soil_raw * frac_GDPEP
+  )
+)
 
-# data <- mutate(
-#   data,
-#   emission_air = ,
-#   emission_water = ,
-#   emission_ww = ,
-#   emission_soil =
-# )
 
 ## writing data to disk ##
 # write_csv2(data, "data/modified/test-data.csv")

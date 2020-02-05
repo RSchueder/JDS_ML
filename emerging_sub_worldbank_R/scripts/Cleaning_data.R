@@ -257,6 +257,7 @@ data <- select(
   data,
   -HAROID,
   -REGION,
+  -MAINDOWN,
   -LAKEDATAID,
   -LAKE_DEPTH,  # always the same
   -ICATCH,  # always the same
@@ -283,8 +284,9 @@ data <- select(
 # intermediate
 write_csv2(data_intermediate, "data/modified/intermediate_data.csv")
 write_rds(data_intermediate, "data/modified/intermediate_data.rds")
+write_parquet(data_intermediate, sink = "data/modified/intermediate_data.parquet")
 
 # for later use #
 write_csv2(data, "data/modified/compact_data.csv")
 write_rds(data, "data/modified/compact_data.rds")
-
+write_parquet(data, "data/modified/compact_data.parquet")

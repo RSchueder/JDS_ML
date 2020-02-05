@@ -5,6 +5,7 @@
 library(tidyverse)
 library(readxl)
 library(RSQLite)
+library(naniar)
 
 # Loading data ------------------------------------------------------------
 
@@ -168,6 +169,9 @@ data <- data_tot %>%
   ) %>% 
   filter(H_Unit != "µg/kg")
 
+# removing missing measurement
+data <- data[!is.na(data$subs_value), ]
+
 # calculate fraction agricultural are for each subid #
 data <- mutate(data, f_agr = area_agr / AREA)
 # adding flag for substances that belong to multiple groups
@@ -181,7 +185,7 @@ data <-
     pharma_bin = if_else(
       pharma == TRUE & mult_groups == 1 | pharma == TRUE & pest != TRUE & mult_groups > 1,
       1 , 0),
-    pest_bin = if_else(pest == TRUE, 1 , 0)
+    pest_bin = if_else(pest == TRUE, 1 , 0, missing = 0)
   )
 # making on column for the groups
 data$sub_groups <- case_when(data$reach_bin == 1 ~ "reach",
@@ -245,7 +249,42 @@ data <- mutate(
   )
 )
 
+# creating intermediate datset #
+data_intermediate <- data
 
-## writing data to disk ##
-# write_csv2(data, "data/modified/test-data.csv")
-# write_rds(data, "data/modified/test-data.rds")
+# create data for later use #
+data <- select(
+  data,
+  -HAROID,
+  -REGION,
+  -LAKEDATAID,
+  -LAKE_DEPTH,  # always the same
+  -ICATCH,  # always the same
+  -loc_sp,
+  -loc_in,
+  -frac_GDPEP,
+  -f_agr,
+  -emission_air_raw,
+  -emission_water_raw,
+  -emission_ww_raw,
+  -emission_soil_raw,
+  -mult_groups,
+  -reach,
+  -pest,
+  -pharma,
+  -drydep_n2,  # drydep_n1 & drydep_n2 are the same?
+  -WQPARREG  # always the same
+  )
+
+#miss_var_summary(data)
+
+# Writing data to disk ----------------------------------------------------
+
+# intermediate
+write_csv2(data_intermediate, "data/modified/intermediate_data.csv")
+write_rds(data_intermediate, "data/modified/intermediate_data.rds")
+
+# for later use #
+write_csv2(data, "data/modified/compact_data.csv")
+write_rds(data, "data/modified/compact_data.rds")
+

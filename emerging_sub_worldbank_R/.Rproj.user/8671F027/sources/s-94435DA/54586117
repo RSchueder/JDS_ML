@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1574081183209.000,
+    "dirty" : true,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "54586117",
+    "lastKnownWriteTime" : 1580914363,
+    "last_content_update" : 1580914406074,
+    "path" : "P:/1209104-solutions/JDS_ML/github_repo_JDS_ML/JDS_ML/emerging_sub_worldbank_R/scripts/Cleaning_data.R",
+    "project_path" : "scripts/Cleaning_data.R",
+    "properties" : {
+        "cursorPosition" : "281,0",
+        "scrollLine" : "259",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

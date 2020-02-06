@@ -6,6 +6,7 @@ library(tidyverse)
 library(readxl)
 library(RSQLite)
 library(naniar)
+library(arrow)
 
 # Loading data ------------------------------------------------------------
 

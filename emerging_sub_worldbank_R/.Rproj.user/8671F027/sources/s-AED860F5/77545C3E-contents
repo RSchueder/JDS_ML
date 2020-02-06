@@ -40,7 +40,7 @@ cv <-
 elog <- cv$evaluation_log
 
 elog %>% 
-  summarize(ntrees.train = which.min(train_rmse_mean),   # find the index of min(train_rmse_mean)
+  summarize(ntrees.train = which.min(train_rmse_mean),   # find the index of min (train_rmse_mean)
             ntrees.test  = which.min(test_rmse_mean)) 
 
 subs_model_xgb <- xgboost(data = as.matrix(df),

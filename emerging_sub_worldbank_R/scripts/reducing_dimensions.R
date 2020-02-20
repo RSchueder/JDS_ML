@@ -4,6 +4,7 @@ library(factoextra)
 library(paran)
 library(psych)
 library(tidyverse)
+library(Rtsne)
 # Loading data ------------------------------------------------------------
 
 df <- read_rds("data/modified/compact_data.rds")
@@ -58,9 +59,10 @@ paran_df <- as.data.frame(paran_df[complete.cases(paran_df), ])
 paran(paran_df, graph = TRUE)
 fa.parallel(paran_df)
 
+# t-SNE #
 
 
-
+tsne_output <- Rtsne(paran_df, perplexity = 50, max_iter = 1200, dims = 3, check_duplicates = FALSE)
 
 
 

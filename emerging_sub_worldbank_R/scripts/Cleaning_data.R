@@ -275,7 +275,28 @@ data <- select(
   -pest,
   -pharma,
   -drydep_n2,  # drydep_n1 & drydep_n2 are the same?
-  -WQPARREG  # always the same
+  -WQPARREG,  # always the same
+  -DHSLC_3,  # only 0 values for the variables below
+  -SLC_3,
+  -SLC_23,
+  -SLC_26,
+  -SLC_32,
+  -SLC_33,
+  -SLC_35,
+  -SLC_36,
+  -SLC_41,
+  -SLC_51,
+  -SLC_53,
+  -SLC_54,
+  -SLC_56,
+  -SLC_57,
+  -SLC_58,
+  -SLC_59,
+  -SLC_60,
+  -SLC_66,
+  -SLC_70,
+  -SLC_74,
+  -SLC_75
   )
 
 #miss_var_summary(data)

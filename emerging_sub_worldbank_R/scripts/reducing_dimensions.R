@@ -3,12 +3,11 @@ library(FactoMineR)
 library(factoextra)
 library(paran)
 library(psych)
-library(tidyverse)
 library(Rtsne)
+library(tidyverse)
 # Loading data ------------------------------------------------------------
 
 df <- read_rds("data/modified/compact_data.rds")
-
 
 # PCA #
 pca_df <-
@@ -35,7 +34,23 @@ pca_df <-
     -valid_measurement
   )
 
-pca_all <- PCA(pca_df, quanti.sup = 99:101, quali.sup = 102, graph = TRUE)
+pca_base_df <-
+  select(
+    pca_df,
+    -emission_air,
+    -emission_water,
+    -emission_ww,
+    -emission_soil,
+    -kbiodeg,
+    -log_kow,
+    -molar_mass,
+    -ks,
+    -sub_groups
+  )
+
+pca_all <- PCA(pca_df, quanti.sup = 78:80, quali.sup = 81, graph = TRUE)
+pca_base <- prcomp(pca_base_df, scale. = TRUE)
+ 
 
 summary(pca_all)
 dimdesc(pca_all, axes = 1:2)
@@ -60,8 +75,6 @@ paran(paran_df, graph = TRUE)
 fa.parallel(paran_df)
 
 # t-SNE #
-
-
 tsne_output <- Rtsne(paran_df, perplexity = 50, max_iter = 1200, dims = 3, check_duplicates = FALSE)
 
 

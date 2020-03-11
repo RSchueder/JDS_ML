@@ -5,8 +5,11 @@
 library(tidyverse)
 library(readxl)
 library(RSQLite)
+library(naniar)
+library(arrow)
 
 # Loading data ------------------------------------------------------------
+
 geo_hydro <- read_tsv("data/raw/GeoData.txt") %>% 
   filter(HAROID == 9600704)
 
@@ -15,14 +18,18 @@ catch <- read_excel("data/raw/NewHypeSchematisation.xlsx", sheet = "CumCat") %>%
   
 measurements <-
   read_excel(path = "data/raw/JDS_Query met pivot.xlsx", sheet = "DBQuery") %>%
-  select(Station_Code,
-         Substance,
-         CAS_No,
-         H_Unit,
-         Concentration,
-         `Data value`,
-         `Valid measurement`) %>% rename(subs_value = `Data value`, valid_measurement = `Valid measurement`) %>% 
-  filter(CAS_No != "N/A")
+  filter(Sample_Matrix == "Water - Surface water", CAS_No != "N/A") %>% 
+  select(
+    Station_Code,
+    Substance,
+    CAS_No,
+    H_Unit,
+    Concentration,
+    `Data value`,
+    `Valid measurement`
+  ) %>%
+  rename(subs_value = `Data value`,
+         valid_measurement = `Valid measurement`)
 
 measurements$H_Unit[measurements$H_Unit == "mg/L"] <- "mg/l"
 
@@ -31,8 +38,31 @@ measurements_mapping <- read_csv2(file = "data/raw/MappingJDS_Define.csv") %>%
   filter(HAROID == 9600704) %>% 
   select(station_co, SUBID, distance_t, CumAreakkm2)
 
+
 demo <- read_excel(path = "data/raw/copy_locators_hypefinal_Nov2017.xlsx", sheet = "locators") %>% 
   select(SC, CountryCorrFinal, GDPEP)
+
+countries <- read_excel(path = "data/raw/copy_locators_hypefinal_Nov2017.xlsx", sheet = "Countries") %>% 
+  rename(country = `Countries in Ehype`, country_nr = Nr) %>% 
+  select(country, country_nr)
+
+country_gdpep <- read_tsv("data/raw/GeoData.txt") %>% 
+  select(SUBID) %>% 
+  left_join(demo, by = c("SUBID" = "SC")) %>% 
+  left_join(countries, by = c("CountryCorrFinal" = "country")) %>% 
+  group_by(CountryCorrFinal, country_nr) %>% 
+  summarise(coun_gdpep = sum(GDPEP, na.rm = TRUE)) %>% 
+  ungroup()
+  
+agrlu <- read_excel(path = "data/raw/copy_locators_hypefinal_Nov2017.xlsx", sheet = "LU") %>% 
+  select(SUBID, Agr) %>% 
+  rename(area_agr = Agr)
+
+demo <- left_join(demo, countries, by = c("CountryCorrFinal" = "country")) %>% 
+  left_join(agrlu, by = c("SC" = "SUBID")) %>% 
+  left_join(country_gdpep, by = c("CountryCorrFinal", "country_nr")) %>% 
+  mutate(frac_GDPEP = GDPEP / coun_gdpep)
+
 
 conn <- dbConnect(RSQLite::SQLite(), "data/raw/substance_properties.db")
 dbListTables(conn)
@@ -64,12 +94,14 @@ sub_groups <- dbGetQuery(
   mutate(pest = str_detect(CODE, "pest"),
          pharma = str_detect(CODE, "pharma"),
          reach = str_detect(CODE, "reach")
-         ) %>% 
-  select(-CODE)
+         ) #%>% 
+  # select(-CODE)
 
 sub_groups <- sub_groups[!duplicated(sub_groups$CAS), ]
 
-## joining data ##
+
+# Joining data  -----------------------------------------------------------
+
 data_tot <-
   left_join(measurements_mapping,
             measurements ,
@@ -86,6 +118,7 @@ data <- data_tot %>%
     MAINDOWN,
     SUBID,
     CountryCorrFinal,
+    country_nr,
     LAKEREGION,
     REGION,
     WQPARREG,
@@ -112,6 +145,7 @@ data <- data_tot %>%
     pest,
     pharma,
     AREA,
+    area_agr,
     UPAREA,
     RIVLEN,
     ELEV_MEAN,
@@ -120,21 +154,161 @@ data <- data_tot %>%
     RELIEF,
     SLC_1:CumCat_km2,
     GDPEP,
+    frac_GDPEP,
     distance_t,
     CumAreakkm2
   ) %>% 
-   mutate(
+   mutate(  # recalculating units to one standard #
      subs_value = case_when(
        H_Unit == "mg/l" ~ subs_value * 1000,
        H_Unit == "mg/kg" ~ subs_value * 1000,
       TRUE ~ subs_value
     ),
     H_Unit = case_when(H_Unit == "mg/l" ~ "µg/l",
-                           H_Unit == "mg/kg" ~ "µg/kg",
-                           TRUE ~ H_Unit)
+                       H_Unit == "mg/kg" ~ "µg/kg",
+                       TRUE ~ H_Unit)
+  ) %>% 
+  filter(H_Unit != "µg/kg")
+
+# removing missing measurement
+data <- data[!is.na(data$subs_value), ]
+
+# calculate fraction agricultural are for each subid #
+data <- mutate(data, f_agr = area_agr / AREA)
+# adding flag for substances that belong to multiple groups
+data$mult_groups <- rowSums(data[,c('reach', 'pharma', 'pest')], na.rm = TRUE)
+
+# making sure that every substance only belongs to one group using priorities #
+data <-
+  mutate(
+    data,
+    reach_bin = if_else(reach == TRUE & mult_groups == 1, 1 , 0),
+    pharma_bin = if_else(
+      pharma == TRUE & mult_groups == 1 | pharma == TRUE & pest != TRUE & mult_groups > 1,
+      1 , 0),
+    pest_bin = if_else(pest == TRUE, 1 , 0, missing = 0)
+  )
+# making on column for the groups
+data$sub_groups <- case_when(data$reach_bin == 1 ~ "reach",
+                             data$pharma_bin == 1 ~ " pharma",
+                             data$pest_bin == 1 ~ "pest")
+
+# Obtaining emissions data ------------------------------------------------
+
+emission_files <- list.files(path = "data/raw/emission-data/", pattern = "*.dbg", full.names = TRUE)
+
+emission_data <- NULL
+
+# file <- "data/raw/emission-data/espaceCAS_100-41-4.dbg"
+for (file in emission_files) {
+  
+cas <- str_extract(basename(file), "\\d{1,}-\\d{1,2}-\\d{1}")
+  
+df <-
+  read_table2(
+    file = file,
+    skip = 2,
+    col_names = FALSE,
+    col_types =  cols(X1 = col_integer(),
+                      X2 = col_double(),
+                      X3 = col_double())
   )
 
+skip <- which(is.na(df$X1))
 
-## writing data to disk ##
-# write_csv2(data, "data/modified/test-data.csv")
-# write_rds(data, "data/modified/test-data.rds")
+df <- df[-c(1:skip[2]), ]
+colnames(df) <- c("country_nr" ,"emission_air_raw", "emission_water_raw", "emission_ww_raw", "emission_soil_raw", "unknown")
+df$cas <- cas
+
+emission_data <- bind_rows(emission_data, df)
+
+}
+
+# cleaning and joining emission data #
+emission_data <- select(emission_data, country_nr, cas, emission_air_raw:emission_soil_raw)
+
+data <- left_join(data, emission_data, by = c("country_nr" = "country_nr" , "CAS_No" = "cas"))
+
+# calculating emissions based on substance group # 
+data <- mutate(
+  data,
+  emission_air = case_when(
+    pest_bin == 1 ~ emission_air_raw * f_agr,
+    pest_bin != 1 ~ emission_air_raw * frac_GDPEP
+  ),
+  emission_water = case_when(
+    pest_bin == 1 ~ emission_water_raw * f_agr,
+    pest_bin != 1 ~ emission_water_raw * frac_GDPEP
+  ),
+  emission_ww = case_when(
+    pest_bin == 1 ~ emission_ww_raw * f_agr,
+    pest_bin != 1 ~ emission_ww_raw * frac_GDPEP
+  ),
+  emission_soil = case_when(
+    pest_bin == 1 ~ emission_soil_raw * f_agr,
+    pest_bin != 1 ~ emission_soil_raw * frac_GDPEP
+  )
+)
+
+# creating intermediate datset #
+data_intermediate <- data
+
+# create data for later use #
+data <- select(
+  data,
+  -HAROID,
+  -REGION,
+  -MAINDOWN,
+  -LAKEDATAID,
+  -LAKE_DEPTH,  # always the same
+  -ICATCH,  # always the same
+  -loc_sp,
+  -loc_in,
+  -frac_GDPEP,
+  -f_agr,
+  -emission_air_raw,
+  -emission_water_raw,
+  -emission_ww_raw,
+  -emission_soil_raw,
+  -mult_groups,
+  -reach,
+  -pest,
+  -pharma,
+  -drydep_n2,  # drydep_n1 & drydep_n2 are the same?
+  -WQPARREG,  # always the same
+  -DHSLC_3,  # only 0 values for the variables below
+  -SLC_3,
+  -SLC_23,
+  -SLC_26,
+  -SLC_32,
+  -SLC_33,
+  -SLC_35,
+  -SLC_36,
+  -SLC_41,
+  -SLC_51,
+  -SLC_53,
+  -SLC_54,
+  -SLC_56,
+  -SLC_57,
+  -SLC_58,
+  -SLC_59,
+  -SLC_60,
+  -SLC_66,
+  -SLC_70,
+  -SLC_74,
+  -SLC_75
+  )
+
+#miss_var_summary(data)
+
+# Writing data to disk ----------------------------------------------------
+
+# intermediate
+write_csv2(data_intermediate, "data/modified/intermediate_data.csv")
+write_rds(data_intermediate, "data/modified/intermediate_data.rds")
+write_parquet(data_intermediate, sink = "data/modified/intermediate_data.parquet")
+
+# for later use #
+write_csv2(data, "data/modified/compact_data.csv")
+write_rds(data, "data/modified/compact_data.rds")
+write_parquet(data, "data/modified/compact_data.parquet")
